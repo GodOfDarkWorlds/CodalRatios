@@ -159,6 +159,13 @@ def values_extractor(url: str, sheet_id: int = 0) -> tuple[dict[str, list[int]],
 
     return final_dict, company_name
 
+def safe_div(a, b):
+    try:
+        if b == 0:
+            return "None"
+        return a / b
+    except (TypeError, ZeroDivisionError):
+        return "None"
 
 def calculator(url: str) -> tuple[dict[str, list[str]], str]:
     data, company_name = values_extractor(url=url)
@@ -228,7 +235,7 @@ def calculator(url: str) -> tuple[dict[str, list[str]], str]:
         debt_to_equity_ratio.append(data["P"][i] / data["M"][i])
         equity_ratio.append((data["M"][i] / data["N"][i]) * 100)
         long_term_debt_to_equity.append(data["R"][i] / data["M"][i])
-        interest_coverage_ratio.append(data["R"][i] / data["S"][i])
+        interest_coverage_ratio.append(data["K"][i] / data["S"][i])
 
     # نسبت‌های درصدی
     percentage_ratios = [
