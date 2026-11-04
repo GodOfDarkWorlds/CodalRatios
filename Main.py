@@ -1,4 +1,5 @@
 import csv
+from os import system, environ
 from json import loads
 from time import sleep
 from requests import get, Response
@@ -10,6 +11,39 @@ from fake_useragent import UserAgent
 from re import compile, search, DOTALL
 
 
+
+
+def show_banner() -> None:
+    def link(url: str, text: str = None) -> str:
+        text = text or url
+        if not environ.get("WT_SESSION"):
+            return text
+        return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
+
+    system("")  # فعال کردن رنگ ANSI تو cmd ویندوز
+    cyan, white, magenta = "\033[96m", "\033[97;1m", "\033[95m"
+    red, dim, reset = "\033[91m", "\033[90m", "\033[0m"
+    W = 50
+    gh = "https://github.com/godOfDarkWorlds"
+
+    def row(text="", color="", url=None):
+        shown = link(url, text) if url else text
+        pad = " " * (W - len(text))
+        return f"{cyan}║{reset}{color}{shown}{reset}{pad}{cyan}║{reset}"
+
+    print(cyan + "╔" + "═" * W + "╗" + reset)
+    print(row())
+    print(row("            C O D A L   R A T I O S", white))
+    print(row("       Financial ratios from Codal reports", magenta))
+    print(row())
+    print(cyan + "╟" + "─" * W + "╢" + reset)
+    print(row())
+    print(row("   by A", dim))
+    print(row("   " + "Github: " + gh, cyan, url=gh))
+    print(row("   [!] For personal use only.", red))
+    print(row())
+    print(cyan + "╚" + "═" * W + "╝" + reset)
+    print()
 
 
 def request_to_sit(url: str, sheet_id: int) -> Response | int:
@@ -44,7 +78,6 @@ def request_to_sit(url: str, sheet_id: int) -> Response | int:
 
 
 def retry_attempt(url: str, sheet_id: int) -> BeautifulSoup:
-
     how_many = 3
 
     for attempt in range(how_many):
@@ -56,8 +89,9 @@ def retry_attempt(url: str, sheet_id: int) -> BeautifulSoup:
                 if response == 404:
                     print("Can not Find Report.\nMake Sure Enter Valid Link.\n\n")
                     url_check(url=input("Enter Valid Link: "))
+                    break
 
-                raise Exception(f"HTTP Error: {response}\nReport To Creator.")
+                print(f"HTTP Error: {response}\nReport To Creator.")
 
             return BeautifulSoup(response.text, 'html.parser')
 
@@ -65,11 +99,12 @@ def retry_attempt(url: str, sheet_id: int) -> BeautifulSoup:
             print("Connection Error!")
 
             if attempt + 1 == how_many:
-                print("Can Not Reach The Site.")
-                raise
+                url_check(input("Can Not Reach The Site.\n\nTry Again Later Or Enter Url: "))
+                break
+
+
 
             print(f"Retrying... Attempt {attempt + 2}")
-
 
 
 def dict_extractor(url: str, sheet_id: int) -> dict | None:
@@ -99,11 +134,10 @@ def dict_extractor(url: str, sheet_id: int) -> dict | None:
             print("Sheets not found")
     else:
         print("Data not found")
-    return None
+    url_check(input("Can Not Get Data.\n\nTry Again Later Or Enter Url: "))
 
 
 def values_extractor(url: str, sheet_id: int = 0) -> tuple[dict[str, list[int]], str]:
-
     name_to_code = {"جمع دارايي\u200cهاي جاري": "A", "جمع بدهي\u200cهاي جاري": "B",
                     "سفارشات و پيش\u200cپرداخت\u200cها": "C", "موجودي مواد و کالا": "D",
                     "سرمايه\u200cگذاري\u200cهاي کوتاه\u200cمدت": "E", "موجودي نقد": "F", "درآمدهاي عملياتي": "G",
@@ -111,7 +145,6 @@ def values_extractor(url: str, sheet_id: int = 0) -> tuple[dict[str, list[int]],
                     "سود(زيان) ناخالص": "J", "سود(زيان) عملياتى": "K", "سود(زيان) خالص": "L", "جمع حقوق مالکانه": "M",
                     "جمع دارايي\u200cها": "N", "جمع بدهي\u200cها": "P", "دارايي\u200cهاي ثابت مشهود": "Q",
                     "جمع بدهي\u200cهاي غيرجاري": "R", "هزينه\u200f هاى مالى": "S"}
-
 
     def _value(i):
         return int(i["value"].lstrip("-")) if i["value"].lstrip("-").isdigit() else i["value"]
@@ -127,9 +160,10 @@ def values_extractor(url: str, sheet_id: int = 0) -> tuple[dict[str, list[int]],
         elif sheet_id == 1:
             table_rows = ["4", "5", "6", "11", "12", "21"]
 
-        data , company_name= dict_extractor(url=url, sheet_id=sheet_id)
+        data, company_name = dict_extractor(url=url, sheet_id=sheet_id)
         for table_row in table_rows:
             o = None
+            first = mid = last = None
             for i in data:
                 v = i.values()
                 if "A" + table_row in v and i["columnSequence"] == 1:
@@ -159,12 +193,24 @@ def values_extractor(url: str, sheet_id: int = 0) -> tuple[dict[str, list[int]],
 
     return final_dict, company_name
 
+
 def safe_div(a, b):
     try:
         if b == 0:
             return "None"
         return a / b
     except (TypeError, ZeroDivisionError):
+        return "None"
+
+def safe_mul(a):
+    if a == "None":
+        return "None"
+    return a * 100
+
+def avg(a, b):
+    try:
+        return safe_div(a=(a + b) , b=2)
+    except TypeError:
         return "None"
 
 def calculator(url: str) -> tuple[dict[str, list[str]], str]:
@@ -195,47 +241,53 @@ def calculator(url: str) -> tuple[dict[str, list[str]], str]:
     long_term_debt_to_equity = []  # نسبت بدهی بلندمدت به حقوق مالکانه
     interest_coverage_ratio = []  # نسبت پوشش هزینه مالی
     for i in range(3):
-        current_ratio.append(data["A"][i] / data["B"][i])
-        quick_ratio.append((data["A"][i] - data["D"][i] - data["C"][i]) / data["B"][i])
-        cash_ratio.append((data["F"][i] + data["E"][i]) / data["B"][i])
-        cash_to_current_liabilities.append(data["F"][i] / data["B"][i])
+        current_ratio.append(safe_div(data["A"][i], data["B"][i]))
+        quick_ratio.append(safe_div((data["A"][i] - data["D"][i] - data["C"][i]), data["B"][i]))
+        cash_ratio.append(safe_div((data["F"][i] + data["E"][i]), data["B"][i]))
+        cash_to_current_liabilities.append(safe_div(data["F"][i], data["B"][i]))
         ##################################
 
         if i < 2:
-            it = data["I"][i] / ((data["D"][i] + data["D"][i + 1]) / 2)
-            rt = data["G"][i] / ((data["H"][i] + data["H"][i + 1]) / 2)
+            it = safe_div(a=data["I"][i], b=avg(a=data["D"][i] ,b=data["D"][i + 1]))
+            rt = safe_div(a=data["G"][i], b=avg(a=data["H"][i] ,b=data["H"][i + 1]))
 
             inventory_turnover.append(it)
-            days_inventory_outstanding.append(184 / it)
+            days_inventory_outstanding.append(safe_div(184, it))
 
             receivables_turnover.append(rt)
-            days_sales_outstanding.append(184 / rt)
+            days_sales_outstanding.append(safe_div(184, rt))
 
-            total_asset_turnover.append(data["G"][i] / ((data["N"][i] + data["N"][i + 1]) / 2))
-            fixed_asset_turnover.append(data["G"][i] / ((data["Q"][i] + data["Q"][i + 1]) / 2))
+            total_asset_turnover.append(safe_div(a=data["G"][i], b=avg(a=data["N"][i], b=data["N"][i + 1])))
+            fixed_asset_turnover.append(safe_div(a=data["G"][i], b=avg(a=data["Q"][i], b=data["Q"][i + 1])))
             ##################################
-            return_on_assets.append((data["L"][i] / ((data["N"][i] + data["N"][i + 1]) / 2)) * 100)
-            return_on_equity.append((data["L"][i] / ((data["M"][i] + data["M"][i + 1]) / 2)) * 100)
+            return_on_assets.append(
+                safe_mul(safe_div(a=data["L"][i], b=avg(a=data["N"][i], b=data["N"][i + 1])))
+            )
+
+            return_on_equity.append(
+                safe_mul(safe_div(a=data["L"][i], b=avg(a=data["M"][i], b=data["M"][i + 1])))
+            )
         else:
             inventory_turnover.append("None")
             days_inventory_outstanding.append("None")
             receivables_turnover.append("None")
             days_sales_outstanding.append("None")
             total_asset_turnover.append("None")
+            fixed_asset_turnover.append("None")
             ##################################
             return_on_assets.append("None")
             return_on_equity.append("None")
 
         ##################################
-        gross_profit_margin.append((data["J"][i] / data["G"][i]) * 100)
-        operating_profit_margin.append((data["K"][i] / data["G"][i]) * 100)
-        net_profit_margin.append((data["L"][i] / data["G"][i]) * 100)
+        gross_profit_margin.append(safe_mul(safe_div(data["J"][i], data["G"][i])))
+        operating_profit_margin.append(safe_mul(safe_div(data["K"][i], data["G"][i])))
+        net_profit_margin.append(safe_mul(safe_div(data["L"][i], data["G"][i])))
         ##################################
-        debt_ratio.append((data["P"][i] / data["N"][i]) * 100)
-        debt_to_equity_ratio.append(data["P"][i] / data["M"][i])
-        equity_ratio.append((data["M"][i] / data["N"][i]) * 100)
-        long_term_debt_to_equity.append(data["R"][i] / data["M"][i])
-        interest_coverage_ratio.append(data["K"][i] / data["S"][i])
+        debt_ratio.append(safe_mul(safe_div(data["P"][i], data["N"][i])))
+        debt_to_equity_ratio.append(safe_div(data["P"][i], data["M"][i]))
+        equity_ratio.append(safe_mul(safe_div(data["M"][i], data["N"][i])))
+        long_term_debt_to_equity.append(safe_div(data["R"][i], data["M"][i]))
+        interest_coverage_ratio.append(safe_div(data["K"][i], data["S"][i]))
 
     # نسبت‌های درصدی
     percentage_ratios = [
@@ -310,11 +362,7 @@ def calculator(url: str) -> tuple[dict[str, list[str]], str]:
     return final_dict, company_name
 
 
-
-
-
 def save_csv(data, filename="financial_ratios.csv") -> None:
-
     names = {
         "current_ratio": "نسبت جاری",
         "quick_ratio": "نسبت آنی",
@@ -329,8 +377,8 @@ def save_csv(data, filename="financial_ratios.csv") -> None:
         "gross_profit_margin": "حاشیه سود ناخالص",
         "operating_profit_margin": "حاشیه سود عملیاتی",
         "net_profit_margin": "حاشیه سود خالص",
-        "return_on_assets": "بازده دارایی‌ها",
-        "return_on_equity": "بازده حقوق مالکانه",
+        "return_on_assets": "بازده دارایی‌ها (ROA)",
+        "return_on_equity": "بازده حقوق مالکانه (ROE)",
         "debt_ratio": "نسبت بدهی",
         "debt_to_equity_ratio": "نسبت بدهی به حقوق مالکانه",
         "equity_ratio": "نسبت حقوق مالکانه",
@@ -344,7 +392,6 @@ def save_csv(data, filename="financial_ratios.csv") -> None:
     ]
 
     with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-
         writer = csv.writer(file)
 
         # سطر اول: نام ستون‌ها و تاریخ‌ها
@@ -352,7 +399,6 @@ def save_csv(data, filename="financial_ratios.csv") -> None:
 
         # سایر سطرها: نام فارسی شاخص و مقادیر
         for key, persian_name in names.items():
-
             values = data.get(key, [])
 
             values = [
@@ -382,6 +428,9 @@ def url_check(url: str) -> None:
 
 
 if __name__ == "__main__":
-    url_check(input("Please Enter \"Codal\" Link: "))
-
-
+    show_banner()
+    try:
+        url_check(input("Please Enter \"Codal\" Link: "))
+    except Exception as e:
+        print(f"Error: {e}")
+    input("\nPress Enter to exit...")
